@@ -1,0 +1,159 @@
+<div class="container slide-up">
+    <div class="page-header">
+        <h1>Password Generator</h1>
+    </div>
+
+    <div class="generator-grid">
+        <mat-card class="generator-card options-card">
+            <mat-card-header>
+                <mat-card-title>Generator Options</mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+                <div class="password-length">
+                    <label>Password Length: {{ options.length }}</label>
+                    <div class="length-slider">
+                        <mat-slider min="4" max="64" step="1" [discrete]="true" class="full-width">
+                            <input matSliderThumb [(ngModel)]="options.length" (input)="generatePassword()">
+                        </mat-slider>
+                    </div>
+                </div>
+
+                <div class="options-list">
+                    <mat-slide-toggle [(ngModel)]="options.includeUppercase" color="primary"
+                        (change)="generatePassword()">
+                        Uppercase Letters (A-Z)
+                    </mat-slide-toggle>
+
+                    <mat-slide-toggle [(ngModel)]="options.includeLowercase" color="primary"
+                        (change)="generatePassword()">
+                        Lowercase Letters (a-z)
+                    </mat-slide-toggle>
+
+                    <mat-slide-toggle [(ngModel)]="options.includeNumbers" color="primary"
+                        (change)="generatePassword()">
+                        Numbers (0-9)
+                    </mat-slide-toggle>
+
+                    <mat-slide-toggle [(ngModel)]="options.includeSymbols" color="primary"
+                        (change)="generatePassword()">
+                        Symbols (!#$%^&*)
+                    </mat-slide-toggle>
+
+                    <mat-slide-toggle [(ngModel)]="options.excludeSimilarCharacters" color="primary"
+                        (change)="generatePassword()">
+                        Exclude Similar Characters (i, l, 1, L, o, 0, O)
+                    </mat-slide-toggle>
+
+                    <mat-slide-toggle [(ngModel)]="options.excludeAmbiguousCharacters" color="primary"
+                        (change)="generatePassword()">
+                        Exclude Ambiguous Characters
+                    </mat-slide-toggle>
+                </div>
+
+                <div class="preset-buttons">
+                    <button mat-stroked-button (click)="usePreset('strong')">
+                        Strong Password
+                    </button>
+                    <button mat-stroked-button (click)="usePreset('memorable')">
+                        Memorable Password
+                    </button>
+                    <button mat-stroked-button (click)="usePreset('pin')">
+                        PIN
+                    </button>
+                    <button mat-stroked-button (click)="usePreset('passphrase')">
+                        Passphrase
+                    </button>
+                </div>
+            </mat-card-content>
+        </mat-card>
+
+        <mat-card class="generator-card result-card">
+            <mat-card-header>
+                <mat-card-title>Generated Password</mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+                <div class="password-container">
+                    <mat-form-field appearance="outline" class="full-width">
+                        <input matInput [type]="hidePassword ? 'password' : 'text'" [(ngModel)]="generatedPassword"
+                            readonly>
+                    </mat-form-field>
+
+                    <div class="password-strength">
+                        <div class="strength-label">
+                            <span>Password Strength:</span>
+                            <span>
+                            </span>
+                        </div>
+                        <mat-progress-bar [color]="getStrengthColor(passwordStrength)" mode="determinate"
+                            [value]="passwordStrength">
+                        </mat-progress-bar>
+                    </div>
+
+                    <div class="result-actions">
+                        <button mat-raised-button color="primary" (click)="copyToClipboard()">
+                            <mat-icon>content_copy</mat-icon>
+                            Copy to Clipboard
+                        </button>
+                        <button mat-raised-button color="accent" (click)="generatePassword()">
+                            <mat-icon>refresh</mat-icon>
+                            Generate New
+                        </button>
+                        <a mat-raised-button color="primary" routerLink="/passwords/new">
+                            <mat-icon>save</mat-icon>
+                            Save Password
+                        </a>
+                    </div>
+                </div>
+            </mat-card-content>
+        </mat-card>
+
+        <mat-card class="generator-card tips-card">
+            <mat-card-header>
+                <mat-card-title>Password Tips</mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+                <div class="tips-list">
+                    <div class="tip-item">
+                        <mat-icon>security</mat-icon>
+                        <div class="tip-content">
+                            <h3>Use unique passwords</h3>
+                            <p>Never reuse passwords across different sites or services.</p>
+                        </div>
+                    </div>
+
+                    <div class="tip-item">
+                        <mat-icon>vpn_key</mat-icon>
+                        <div class="tip-content">
+                            <h3>Longer is better</h3>
+                            <p>Aim for at least 12 characters for strong security.</p>
+                        </div>
+                    </div>
+
+                    <div class="tip-item">
+                        <mat-icon>shuffle</mat-icon>
+                        <div class="tip-content">
+                            <h3>Mix character types</h3>
+                            <p>Combine uppercase, lowercase, numbers, and symbols for the strongest passwords.</p>
+                        </div>
+                    </div>
+
+                    <div class="tip-item">
+                        <mat-icon>update</mat-icon>
+                        <div class="tip-content">
+                            <h3>Change regularly</h3>
+                            <p>Update important passwords every 3-6 months.</p>
+                        </div>
+                    </div>
+
+                    <div class="tip-item">
+                        <mat-icon>phonelink_lock</mat-icon>
+                        <div class="tip-content">
+                            <h3>Enable 2FA</h3>
+                            <p>Use two-factor authentication whenever possible for an extra layer of security.</p>
+                        </div>
+                    </div>
+                </div>
+            </mat-card-content>
+        </mat-card>
+    </div>
+</div>

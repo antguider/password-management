@@ -195,7 +195,7 @@ import { EncryptionService } from '../../services/encryption.service';
               <mat-slide-toggle 
                 [(ngModel)]="generatorOptions.includeSymbols" 
                 color="primary">
-                Symbols (!@#$%^&*)
+                Symbols (!#$%^&*)
               </mat-slide-toggle>
               
               <mat-slide-toggle 

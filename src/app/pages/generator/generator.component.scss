@@ -1,0 +1,142 @@
+.page-header {
+      margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+      font-size: 28px;
+      font-weight: 400;
+      margin: 0;
+      color: #3F51B5;
+    }
+
+    .generator-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+
+    .generator-card {
+      height: 100%;
+    }
+
+    .options-card {
+      grid-column: span 1;
+    }
+
+    .result-card {
+      grid-column: span 1;
+    }
+
+    .tips-card {
+      grid-column: span 2;
+    }
+
+    .full-width {
+      width: 100%;
+    }
+
+    .password-length {
+      margin-bottom: 24px;
+    }
+
+    .length-slider {
+      margin-top: 8px;
+    }
+
+    .options-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .preset-buttons {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .password-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .password-strength {
+      margin-bottom: 16px;
+    }
+
+    .strength-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .strength-weak {
+      color: #f44336;
+    }
+
+    .strength-medium {
+      color: #ff9800;
+    }
+
+    .strength-strong {
+      color: #4caf50;
+    }
+
+    .result-actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .tips-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .tip-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 16px;
+      background-color: #f5f5f7;
+      border-radius: 8px;
+      transition: transform 0.2s ease;
+    }
+
+    .tip-item:hover {
+      transform: translateY(-2px);
+    }
+
+    .tip-item mat-icon {
+      color: #3F51B5;
+    }
+
+    .tip-content h3 {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    .tip-content p {
+      margin: 0;
+      color: #666;
+    }
+
+    @media (max-width: 959px) {
+      .generator-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .options-card, .result-card, .tips-card {
+        grid-column: span 1;
+      }
+    }
+
+    @media (max-width: 599px) {
+      .preset-buttons, .result-actions {
+        grid-template-columns: 1fr;
+      }
+    }
