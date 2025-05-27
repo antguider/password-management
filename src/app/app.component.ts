@@ -11,21 +11,8 @@ import { HeaderComponent } from './components/header/header.component';
     RouterOutlet,
     HeaderComponent
   ],
-  template: `
-    <div class="app-container">
-      <app-header></app-header>
-      <main class="page-container">
-        <router-outlet></router-outlet>
-      </main>
-    </div>
-  `,
-  styles: [`
-    .app-container {
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
-  `]
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.scss']
 })
 export class AppComponent {
   title = 'Vault';

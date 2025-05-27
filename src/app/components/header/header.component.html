@@ -1,0 +1,41 @@
+<mat-toolbar color="primary" class="header">
+  <div class="container header-container">
+    <div class="logo-container">
+      <a [routerLink]="['/dashboard']" class="logo">
+        <mat-icon>lock</mat-icon>
+        <span>Vault</span>
+      </a>
+    </div>
+
+    <div class="nav-links" [class.show-mobile-menu]="showMobileMenu">
+      <a mat-button 
+        routerLink="/dashboard" 
+        routerLinkActive="active-link">
+        <mat-icon>dashboard</mat-icon>
+        <span>Dashboard</span>
+      </a>
+      <a mat-button 
+        routerLink="/passwords" 
+        routerLinkActive="active-link">
+        <mat-icon>vpn_key</mat-icon>
+        <span>Passwords</span>
+      </a>
+      <a mat-button 
+        routerLink="/generator" 
+        routerLinkActive="active-link">
+        <mat-icon>shuffle</mat-icon>
+        <span>Generator</span>
+      </a>
+      <a mat-button 
+        routerLink="/settings" 
+        routerLinkActive="active-link">
+        <mat-icon>settings</mat-icon>
+        <span>Settings</span>
+      </a>
+    </div>
+
+    <button mat-icon-button class="menu-button" (click)="toggleMobileMenu()">
+      <mat-icon>{{ showMobileMenu ? 'close' : 'menu' }}</mat-icon>
+    </button>
+  </div>
+</mat-toolbar>
