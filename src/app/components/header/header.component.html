@@ -34,6 +34,70 @@
       </a>
     </div>
 
+    <div class="user-section" *ngIf="authService.isLoggedIn()">
+      <div class="user-info" *ngIf="!authService.isInDemoMode()">
+        <img 
+          *ngIf="authService.getUserPhotoUrl()" 
+          [src]="authService.getUserPhotoUrl()" 
+          [alt]="authService.getUserDisplayName()"
+          class="user-avatar">
+        <div class="user-details">
+          <span class="user-name">{{ authService.getUserDisplayName() }}</span>
+          <span class="user-email">{{ authService.getUserEmail() }}</span>
+        </div>
+      </div>
+      
+      <div class="demo-info" *ngIf="authService.isInDemoMode()">
+        <mat-icon class="demo-icon">visibility</mat-icon>
+        <div class="demo-details">
+          <span class="demo-name">Demo Mode</span>
+          <span class="demo-subtitle">Try the app without login</span>
+        </div>
+      </div>
+      
+      <button mat-icon-button [matMenuTriggerFor]="userMenu" class="user-menu-button">
+        <mat-icon>more_vert</mat-icon>
+      </button>
+      
+      <mat-menu #userMenu="matMenu">
+        <div class="menu-header" *ngIf="!authService.isInDemoMode()">
+          <div class="menu-user-info">
+            <img 
+              *ngIf="authService.getUserPhotoUrl()" 
+              [src]="authService.getUserPhotoUrl()" 
+              [alt]="authService.getUserDisplayName()"
+              class="menu-avatar">
+            <div>
+              <div class="menu-user-name">{{ authService.getUserDisplayName() }}</div>
+              <div class="menu-user-email">{{ authService.getUserEmail() }}</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="menu-header" *ngIf="authService.isInDemoMode()">
+          <div class="menu-demo-info">
+            <mat-icon class="menu-demo-icon">visibility</mat-icon>
+            <div>
+              <div class="menu-demo-name">Demo Mode</div>
+              <div class="menu-demo-subtitle">Try the app without login</div>
+            </div>
+          </div>
+        </div>
+        
+        <mat-divider></mat-divider>
+        
+        <button mat-menu-item (click)="logout()" *ngIf="!authService.isInDemoMode()">
+          <mat-icon>logout</mat-icon>
+          <span>Sign Out</span>
+        </button>
+        
+        <button mat-menu-item (click)="exitDemo()" *ngIf="authService.isInDemoMode()">
+          <mat-icon>exit_to_app</mat-icon>
+          <span>Exit Demo</span>
+        </button>
+      </mat-menu>
+    </div>
+
     <button mat-icon-button class="menu-button" (click)="toggleMobileMenu()">
       <mat-icon>{{ showMobileMenu ? 'close' : 'menu' }}</mat-icon>
     </button>

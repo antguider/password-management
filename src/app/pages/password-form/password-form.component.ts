@@ -475,17 +475,22 @@ export class PasswordFormComponent implements OnInit {
     });
   }
 
-  onSubmit(): void {
+  async onSubmit(): Promise<void> {
     if (this.passwordForm.valid) {
       const passwordData = this.passwordForm.value;
       
-      if (this.isEditMode && this.passwordId) {
-        this.passwordService.updatePassword(this.passwordId, passwordData);
-      } else {
-        this.passwordService.addPassword(passwordData);
+      try {
+        if (this.isEditMode && this.passwordId) {
+          await this.passwordService.updatePassword(this.passwordId, passwordData);
+        } else {
+          await this.passwordService.addPassword(passwordData);
+        }
+        
+        this.router.navigate(['/passwords']);
+      } catch (error) {
+        console.error('Error saving password:', error);
+        // You could add a snackbar notification here to show the error to the user
       }
-      
-      this.router.navigate(['/passwords']);
     }
   }
 
