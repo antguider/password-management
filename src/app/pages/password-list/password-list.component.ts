@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -12,9 +12,10 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { PasswordCardComponent } from '../../components/password-card/password-card.component';
 import { PasswordService } from '../../services/password.service';
-import { Password, Category, PasswordFilter } from '../../models/password.model';
+import { Password, PasswordFilter } from '../../models/password.model';
 
 @Component({
   selector: 'app-password-list',
@@ -33,16 +34,22 @@ import { Password, Category, PasswordFilter } from '../../models/password.model'
     MatDividerModule,
     MatToolbarModule,
     MatMenuModule,
+    MatTooltipModule,
     PasswordCardComponent
   ],
   template: `
     <div class="container slide-up">
       <div class="page-header">
         <h1>Your Passwords</h1>
-        <a mat-raised-button color="primary" routerLink="/passwords/new">
-          <mat-icon>add</mat-icon>
-          Add New Password
-        </a>
+        <div class="header-actions">
+          <button mat-icon-button (click)="refreshPasswords()" matTooltip="Refresh passwords">
+            <mat-icon>refresh</mat-icon>
+          </button>
+          <a mat-raised-button color="primary" routerLink="/passwords/new">
+            <mat-icon>add</mat-icon>
+            Add New Password
+          </a>
+        </div>
       </div>
 
       <mat-card class="filter-card">
@@ -55,16 +62,6 @@ import { Password, Category, PasswordFilter } from '../../models/password.model'
           </mat-form-field>
 
           <div class="filter-actions">
-            <mat-form-field appearance="outline">
-              <mat-label>Category</mat-label>
-              <mat-select [(ngModel)]="filter.category" (selectionChange)="applyFilter()">
-                <mat-option [value]="undefined">All Categories</mat-option>
-                <mat-option *ngFor="let category of categories" [value]="category.name">
-                  {{ category.name }}
-                </mat-option>
-              </mat-select>
-            </mat-form-field>
-
             <mat-form-field appearance="outline">
               <mat-label>Sort By</mat-label>
               <mat-select [(ngModel)]="filter.sortBy" (selectionChange)="applyFilter()">
@@ -101,12 +98,6 @@ import { Password, Category, PasswordFilter } from '../../models/password.model'
                   <mat-icon>cancel</mat-icon>
                 </button>
               </mat-chip>
-              <mat-chip *ngIf="filter.category" (removed)="removeCategoryFilter()">
-                Category: {{ filter.category }}
-                <button matChipRemove>
-                  <mat-icon>cancel</mat-icon>
-                </button>
-              </mat-chip>
               <mat-chip *ngIf="filter.favorite" (removed)="removeFavoriteFilter()">
                 Favorites Only
                 <button matChipRemove>
@@ -134,17 +125,17 @@ import { Password, Category, PasswordFilter } from '../../models/password.model'
       </mat-card>
 
       <div class="passwords-list">
-        <div *ngIf="filteredPasswords.length === 0" class="empty-state">
+        <div *ngIf="filteredPasswords().length === 0" class="empty-state">
           <mat-icon>vpn_key</mat-icon>
-          <p *ngIf="passwordCount === 0">No passwords yet. Add your first password to get started.</p>
-          <p *ngIf="passwordCount > 0">No passwords match your current filters.</p>
-          <button *ngIf="passwordCount > 0" mat-button color="primary" (click)="resetFilters()">
+          <p *ngIf="passwordCount() === 0">No passwords yet. Add your first password to get started.</p>
+          <p *ngIf="passwordCount() > 0">No passwords match your current filters.</p>
+          <button *ngIf="passwordCount() > 0" mat-button color="primary" (click)="resetFilters()">
             Clear Filters
           </button>
         </div>
 
         <app-password-card 
-          *ngFor="let password of filteredPasswords" 
+          *ngFor="let password of filteredPasswords()" 
           [password]="password"
           (deleted)="onPasswordDeleted($event)"
         ></app-password-card>
@@ -157,6 +148,12 @@ import { Password, Category, PasswordFilter } from '../../models/password.model'
       justify-content: space-between;
       align-items: center;
       margin-bottom: 24px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .page-header h1 {
@@ -272,43 +269,34 @@ import { Password, Category, PasswordFilter } from '../../models/password.model'
     }
   `]
 })
-export class PasswordListComponent implements OnInit {
-  passwords: Password[] = [];
-  filteredPasswords: Password[] = [];
-  categories: Category[] = [];
-  passwordCount = 0;
+export class PasswordListComponent implements OnInit, OnDestroy {
+  // Use computed signals for reactive data
+  passwords = this.passwordService.passwordsList;
+  filteredPasswords = this.passwordService.filteredPasswords;
+  passwordCount = computed(() => this.passwords().length);
   
   filter: PasswordFilter = {
     sortBy: 'updatedAt',
     sortDirection: 'desc'
   };
 
-  constructor(private passwordService: PasswordService) {}
+  constructor(private passwordService: PasswordService) {
+    // Set up effect to update filter when component filter changes
+    effect(() => {
+      this.passwordService.setFilter(this.filter);
+    });
+  }
 
   ngOnInit(): void {
-    this.loadPasswords();
-    this.loadCategories();
+    // No need to manually load passwords - they're reactive via signals
   }
 
-  loadPasswords(): void {
-    this.passwordService.getPasswords().subscribe(passwords => {
-      this.passwords = passwords;
-      this.passwordCount = passwords.length;
-      this.applyFilter();
-    });
-  }
-
-  loadCategories(): void {
-    this.passwordService.getCategories().subscribe(categories => {
-      this.categories = categories;
-    });
+  ngOnDestroy(): void {
+    // No cleanup needed for signals
   }
 
   applyFilter(): void {
     this.passwordService.setFilter(this.filter);
-    this.passwordService.getPasswords().subscribe(filtered => {
-      this.filteredPasswords = filtered;
-    });
   }
 
   toggleFavoriteFilter(): void {
@@ -326,10 +314,6 @@ export class PasswordListComponent implements OnInit {
     this.applyFilter();
   }
 
-  removeCategoryFilter(): void {
-    this.filter.category = undefined;
-    this.applyFilter();
-  }
 
   removeFavoriteFilter(): void {
     this.filter.favorite = undefined;
@@ -348,13 +332,18 @@ export class PasswordListComponent implements OnInit {
   hasActiveFilters(): boolean {
     return !!(
       this.filter.searchTerm || 
-      this.filter.category || 
       this.filter.favorite !== undefined
     );
   }
 
   onPasswordDeleted(id: string): void {
-    this.filteredPasswords = this.filteredPasswords.filter(p => p.id !== id);
-    this.passwordCount--;
+    // Password deletion is handled by the service, no need to manually update
+    console.log('Password deleted:', id);
   }
+
+  refreshPasswords(): void {
+    // Passwords are reactive, no manual refresh needed
+    console.log('Passwords refreshed automatically via signals');
+  }
+
 }

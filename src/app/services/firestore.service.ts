@@ -1,22 +1,19 @@
 import { Injectable } from '@angular/core';
-import { Firestore, collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy, onSnapshot, Unsubscribe } from '@angular/fire/firestore';
+import { Firestore, collection, doc, addDoc, updateDoc, deleteDoc, getDocs, getDoc, query, where, orderBy, onSnapshot, Unsubscribe } from '@angular/fire/firestore';
 import { Observable, BehaviorSubject } from 'rxjs';
-import { Password, Category, PasswordHistory } from '../models/password.model';
+import { Password, PasswordHistory } from '../models/password.model';
 
 @Injectable({
   providedIn: 'root'
 })
 export class FirestoreService {
   private passwordsSubject = new BehaviorSubject<Password[]>([]);
-  private categoriesSubject = new BehaviorSubject<Category[]>([]);
   private passwordHistorySubject = new BehaviorSubject<PasswordHistory[]>([]);
 
   public passwords$ = this.passwordsSubject.asObservable();
-  public categories$ = this.categoriesSubject.asObservable();
   public passwordHistory$ = this.passwordHistorySubject.asObservable();
 
   private passwordsUnsubscribe: Unsubscribe | null = null;
-  private categoriesUnsubscribe: Unsubscribe | null = null;
   private passwordHistoryUnsubscribe: Unsubscribe | null = null;
 
   constructor(private firestore: Firestore) {}
@@ -29,35 +26,48 @@ export class FirestoreService {
     
     // Listen to passwords
     const passwordsRef = collection(this.firestore, 'users', userId, 'passwords');
+    console.log('Setting up Firestore listener for user:', userId);
+    console.log('Firestore collection path:', `users/${userId}/passwords`);
+    
+    // Try without orderBy first to see if data exists
+    console.log('🔥 Setting up onSnapshot listener...');
     this.passwordsUnsubscribe = onSnapshot(
-      query(passwordsRef, orderBy('updatedAt', 'desc')),
+      passwordsRef,
       (snapshot) => {
+        console.log('🔥 Firestore passwords snapshot received:', snapshot.docs.length, 'documents');
+        console.log('🔥 Snapshot metadata:', snapshot.metadata);
+        console.log('🔥 Snapshot fromCache:', snapshot.metadata.fromCache);
+        console.log('🔥 Snapshot hasPendingWrites:', snapshot.metadata.hasPendingWrites);
         const passwords = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         })) as Password[];
+        console.log('🔥 Processed passwords:', passwords);
+        console.log('🔥 Updating passwordsSubject with', passwords.length, 'passwords');
         this.passwordsSubject.next(passwords);
       },
       (error) => {
-        console.error('Error listening to passwords:', error);
+        console.error('❌ Error listening to passwords:', error);
+        console.error('❌ Error details:', error.code, error.message);
+        console.log('Retrying without orderBy...');
+        this.passwordsUnsubscribe = onSnapshot(
+          passwordsRef,
+          (snapshot) => {
+            console.log('🔥 Firestore passwords snapshot (no orderBy):', snapshot.docs.length, 'documents');
+            const passwords = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            })) as Password[];
+            console.log('🔥 Processed passwords (no orderBy):', passwords);
+            this.passwordsSubject.next(passwords);
+          },
+          (retryError) => {
+            console.error('❌ Error listening to passwords (retry):', retryError);
+          }
+        );
       }
     );
-
-    // Listen to categories
-    const categoriesRef = collection(this.firestore, 'users', userId, 'categories');
-    this.categoriesUnsubscribe = onSnapshot(
-      categoriesRef,
-      (snapshot) => {
-        const categories = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as Category[];
-        this.categoriesSubject.next(categories);
-      },
-      (error) => {
-        console.error('Error listening to categories:', error);
-      }
-    );
+    console.log('🔥 onSnapshot listener set up complete');
 
     // Listen to password history
     const historyRef = collection(this.firestore, 'users', userId, 'passwordHistory');
@@ -81,11 +91,29 @@ export class FirestoreService {
    */
   async addPassword(userId: string, password: Omit<Password, 'id'>): Promise<string> {
     const passwordsRef = collection(this.firestore, 'users', userId, 'passwords');
-    const docRef = await addDoc(passwordsRef, {
+    const passwordData = {
       ...password,
       createdAt: password.createdAt || new Date(),
       updatedAt: password.updatedAt || new Date()
-    });
+    };
+    
+    console.log('🔥 Adding password to Firestore:');
+    console.log('🔥 User ID:', userId);
+    console.log('🔥 Collection path:', `users/${userId}/passwords`);
+    console.log('🔥 Password data:', passwordData);
+    
+    const docRef = await addDoc(passwordsRef, passwordData);
+    console.log('🔥 Password added with ID:', docRef.id);
+    
+    // Immediately try to read it back to verify it was saved
+    console.log('🔍 Verifying password was saved...');
+    const doc = await getDoc(docRef);
+    if (doc.exists()) {
+      console.log('✅ Password verification successful:', doc.data());
+    } else {
+      console.log('❌ Password verification failed - document not found');
+    }
+    
     return docRef.id;
   }
 
@@ -108,30 +136,6 @@ export class FirestoreService {
     await deleteDoc(passwordRef);
   }
 
-  /**
-   * Add a new category
-   */
-  async addCategory(userId: string, category: Omit<Category, 'id'>): Promise<string> {
-    const categoriesRef = collection(this.firestore, 'users', userId, 'categories');
-    const docRef = await addDoc(categoriesRef, category);
-    return docRef.id;
-  }
-
-  /**
-   * Update an existing category
-   */
-  async updateCategory(userId: string, categoryId: string, updates: Partial<Category>): Promise<void> {
-    const categoryRef = doc(this.firestore, 'users', userId, 'categories', categoryId);
-    await updateDoc(categoryRef, updates);
-  }
-
-  /**
-   * Delete a category
-   */
-  async deleteCategory(userId: string, categoryId: string): Promise<void> {
-    const categoryRef = doc(this.firestore, 'users', userId, 'categories', categoryId);
-    await deleteDoc(categoryRef);
-  }
 
   /**
    * Add password history entry
@@ -150,7 +154,6 @@ export class FirestoreService {
    */
   async getPasswords(userId: string, filters?: {
     searchTerm?: string;
-    category?: string;
     favorite?: boolean;
     sortBy?: string;
     sortDirection?: 'asc' | 'desc';
@@ -159,9 +162,6 @@ export class FirestoreService {
     let q = query(passwordsRef);
 
     // Apply filters
-    if (filters?.category) {
-      q = query(q, where('category', '==', filters.category));
-    }
     if (filters?.favorite !== undefined) {
       q = query(q, where('favorite', '==', filters.favorite));
     }
@@ -191,17 +191,6 @@ export class FirestoreService {
     return passwords;
   }
 
-  /**
-   * Get categories
-   */
-  async getCategories(userId: string): Promise<Category[]> {
-    const categoriesRef = collection(this.firestore, 'users', userId, 'categories');
-    const snapshot = await getDocs(categoriesRef);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Category[];
-  }
 
   /**
    * Get password history for a specific password
@@ -216,22 +205,6 @@ export class FirestoreService {
     })) as PasswordHistory[];
   }
 
-  /**
-   * Initialize default categories for a new user
-   */
-  async initializeDefaultCategories(userId: string): Promise<void> {
-    const defaultCategories: Omit<Category, 'id'>[] = [
-      { name: 'Personal', color: '#4CAF50', icon: 'person' },
-      { name: 'Work', color: '#2196F3', icon: 'work' },
-      { name: 'Finance', color: '#FF9800', icon: 'account_balance' },
-      { name: 'Shopping', color: '#E91E63', icon: 'shopping_cart' },
-      { name: 'Social', color: '#9C27B0', icon: 'group' },
-    ];
-
-    for (const category of defaultCategories) {
-      await this.addCategory(userId, category);
-    }
-  }
 
   /**
    * Clean up real-time listeners
@@ -240,10 +213,6 @@ export class FirestoreService {
     if (this.passwordsUnsubscribe) {
       this.passwordsUnsubscribe();
       this.passwordsUnsubscribe = null;
-    }
-    if (this.categoriesUnsubscribe) {
-      this.categoriesUnsubscribe();
-      this.categoriesUnsubscribe = null;
     }
     if (this.passwordHistoryUnsubscribe) {
       this.passwordHistoryUnsubscribe();
@@ -256,8 +225,28 @@ export class FirestoreService {
    */
   clearUserData(): void {
     this.passwordsSubject.next([]);
-    this.categoriesSubject.next([]);
     this.passwordHistorySubject.next([]);
     this.cleanupListeners();
+  }
+
+  /**
+   * Debug method: Manually fetch all passwords for a user
+   */
+  async debugGetAllPasswords(userId: string): Promise<void> {
+    console.log('🔍 DEBUG: Manually fetching all passwords for user:', userId);
+    try {
+      const passwordsRef = collection(this.firestore, 'users', userId, 'passwords');
+      const snapshot = await getDocs(passwordsRef);
+      console.log('🔍 DEBUG: Found', snapshot.docs.length, 'password documents');
+      
+      snapshot.docs.forEach((doc, index) => {
+        console.log(`🔍 DEBUG: Password ${index + 1}:`, {
+          id: doc.id,
+          data: doc.data()
+        });
+      });
+    } catch (error) {
+      console.error('🔍 DEBUG: Error fetching passwords:', error);
+    }
   }
 }

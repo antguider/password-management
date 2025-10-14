@@ -1,7 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,9 +14,11 @@ import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatDividerModule } from '@angular/material/divider';
-import { Password, Category } from '../../models/password.model';
+import { Password } from '../../models/password.model';
 import { PasswordService } from '../../services/password.service';
 import { EncryptionService } from '../../services/encryption.service';
+import { BehaviorSubject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 
 @Component({
   selector: 'app-password-form',
@@ -58,6 +60,15 @@ import { EncryptionService } from '../../services/encryption.service';
                 <mat-error *ngIf="passwordForm.get('title')?.hasError('required')">
                   Title is required
                 </mat-error>
+                <mat-error *ngIf="passwordForm.get('title')?.hasError('minlength')">
+                  Title must be at least 2 characters long
+                </mat-error>
+                <mat-error *ngIf="passwordForm.get('title')?.hasError('maxlength')">
+                  Title must be less than 100 characters
+                </mat-error>
+                <mat-error *ngIf="passwordForm.get('title')?.hasError('whitespace')">
+                  Title cannot be empty or only whitespace
+                </mat-error>
               </mat-form-field>
             </div>
 
@@ -66,7 +77,16 @@ import { EncryptionService } from '../../services/encryption.service';
                 <mat-label>Username or Email</mat-label>
                 <input matInput formControlName="username" placeholder="username@example.com">
                 <mat-error *ngIf="passwordForm.get('username')?.hasError('required')">
-                  Username is required
+                  Username or email is required
+                </mat-error>
+                <mat-error *ngIf="passwordForm.get('username')?.hasError('minlength')">
+                  Username must be at least 2 characters long
+                </mat-error>
+                <mat-error *ngIf="passwordForm.get('username')?.hasError('maxlength')">
+                  Username must be less than 100 characters
+                </mat-error>
+                <mat-error *ngIf="passwordForm.get('username')?.hasError('invalidFormat')">
+                  Please enter a valid email address or username
                 </mat-error>
               </mat-form-field>
             </div>
@@ -82,6 +102,30 @@ import { EncryptionService } from '../../services/encryption.service';
                 </button>
                 <mat-error *ngIf="passwordForm.get('password')?.hasError('required')">
                   Password is required
+                </mat-error>
+                <mat-error *ngIf="passwordForm.get('password')?.hasError('minlength')">
+                  Password must be at least 8 characters long
+                </mat-error>
+                <mat-error *ngIf="passwordForm.get('password')?.hasError('maxlength')">
+                  Password must be less than 128 characters
+                </mat-error>
+                <mat-error *ngIf="passwordForm.get('password')?.hasError('noUppercase')">
+                  Password must contain at least one uppercase letter
+                </mat-error>
+                <mat-error *ngIf="passwordForm.get('password')?.hasError('noLowercase')">
+                  Password must contain at least one lowercase letter
+                </mat-error>
+                <mat-error *ngIf="passwordForm.get('password')?.hasError('noNumber')">
+                  Password must contain at least one number
+                </mat-error>
+                <mat-error *ngIf="passwordForm.get('password')?.hasError('noSpecialChar')">
+                  Password must contain at least one special character
+                </mat-error>
+                <mat-error *ngIf="passwordForm.get('password')?.hasError('repeatingChars')">
+                  Password cannot have more than 2 consecutive identical characters
+                </mat-error>
+                <mat-error *ngIf="passwordForm.get('password')?.hasError('commonPattern')">
+                  Password contains common patterns that are easy to guess
                 </mat-error>
               </mat-form-field>
               
@@ -106,6 +150,36 @@ import { EncryptionService } from '../../services/encryption.service';
                   </span>
                 </div>
               </div>
+              
+              <div class="password-requirements">
+                <h4>Password Requirements:</h4>
+                <ul class="requirements-list">
+                  <li [class.valid]="hasMinLength()">
+                    <mat-icon>{{ hasMinLength() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                    At least 8 characters long
+                  </li>
+                  <li [class.valid]="hasUppercase()">
+                    <mat-icon>{{ hasUppercase() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                    Contains uppercase letter
+                  </li>
+                  <li [class.valid]="hasLowercase()">
+                    <mat-icon>{{ hasLowercase() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                    Contains lowercase letter
+                  </li>
+                  <li [class.valid]="hasNumber()">
+                    <mat-icon>{{ hasNumber() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                    Contains number
+                  </li>
+                  <li [class.valid]="hasSpecialChar()">
+                    <mat-icon>{{ hasSpecialChar() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                    Contains special character
+                  </li>
+                  <li [class.valid]="!hasRepeatingChars()">
+                    <mat-icon>{{ !hasRepeatingChars() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                    No repeating characters
+                  </li>
+                </ul>
+              </div>
             </div>
 
             <div class="form-row">
@@ -113,25 +187,21 @@ import { EncryptionService } from '../../services/encryption.service';
                 <mat-label>Website URL</mat-label>
                 <input matInput formControlName="url" placeholder="https://example.com">
                 <mat-icon matSuffix>link</mat-icon>
+                <mat-error *ngIf="passwordForm.get('url')?.hasError('invalidUrl')">
+                  Please enter a valid URL (e.g., https://example.com)
+                </mat-error>
               </mat-form-field>
             </div>
 
-            <div class="form-row">
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Category</mat-label>
-                <mat-select formControlName="category">
-                  <mat-option *ngFor="let category of categories" [value]="category.name">
-                    {{ category.name }}
-                  </mat-option>
-                </mat-select>
-              </mat-form-field>
-            </div>
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Notes</mat-label>
                 <textarea matInput formControlName="notes" rows="3" 
                   placeholder="Add notes or additional information"></textarea>
+                <mat-error *ngIf="passwordForm.get('notes')?.hasError('maxlength')">
+                  Notes must be less than 500 characters
+                </mat-error>
               </mat-form-field>
             </div>
 
@@ -293,6 +363,53 @@ import { EncryptionService } from '../../services/encryption.service';
       color: #4caf50;
     }
 
+    .password-requirements {
+      margin-top: 16px;
+      padding: 16px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+    }
+
+    .password-requirements h4 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #495057;
+    }
+
+    .requirements-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 8px;
+    }
+
+    .requirements-list li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #6c757d;
+      transition: color 0.3s ease;
+    }
+
+    .requirements-list li.valid {
+      color: #28a745;
+    }
+
+    .requirements-list li mat-icon {
+      font-size: 16px;
+      height: 16px;
+      width: 16px;
+    }
+
+    .requirements-list li.valid mat-icon {
+      color: #28a745;
+    }
+
     .favorite-toggle {
       margin: 16px 0;
     }
@@ -385,13 +502,12 @@ import { EncryptionService } from '../../services/encryption.service';
     }
   `]
 })
-export class PasswordFormComponent implements OnInit {
+export class PasswordFormComponent implements OnInit, OnDestroy {
   passwordForm!: FormGroup;
   isEditMode = false;
   hidePassword = true;
   hideGeneratedPassword = true;
   passwordId: string | null = null;
-  categories: Category[] = [];
   passwordStrength = 0;
   
   // Password Generator
@@ -407,6 +523,8 @@ export class PasswordFormComponent implements OnInit {
     excludeAmbiguousCharacters: false
   };
 
+  private destroy$ = new BehaviorSubject<boolean>(false);
+
   constructor(
     private fb: FormBuilder,
     private route: ActivatedRoute,
@@ -417,11 +535,12 @@ export class PasswordFormComponent implements OnInit {
 
   ngOnInit(): void {
     this.initializeForm();
-    this.loadCategories();
     this.checkForEditMode();
     
     // Update password strength when password changes
-    this.passwordForm.get('password')?.valueChanges.subscribe(password => {
+    this.passwordForm.get('password')?.valueChanges.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(password => {
       if (password) {
         this.passwordStrength = this.passwordService.calculatePasswordStrength(password);
       } else {
@@ -430,23 +549,41 @@ export class PasswordFormComponent implements OnInit {
     });
   }
 
+  ngOnDestroy(): void {
+    this.destroy$.next(true);
+    this.destroy$.complete();
+  }
+
   initializeForm(): void {
     this.passwordForm = this.fb.group({
-      title: ['', Validators.required],
-      username: ['', Validators.required],
-      password: ['', Validators.required],
-      url: [''],
-      category: ['Personal'],
-      notes: [''],
+      title: ['', [
+        Validators.required,
+        Validators.minLength(2),
+        Validators.maxLength(100),
+        this.noWhitespaceValidator
+      ]],
+      username: ['', [
+        Validators.required,
+        Validators.minLength(2),
+        Validators.maxLength(100),
+        this.emailOrUsernameValidator
+      ]],
+      password: ['', [
+        Validators.required,
+        Validators.minLength(8),
+        Validators.maxLength(128),
+        this.passwordStrengthValidator
+      ]],
+      url: ['', [
+        this.urlValidator
+      ]],
+      notes: ['', [
+        Validators.maxLength(500)
+      ]],
       favorite: [false]
     });
   }
 
-  loadCategories(): void {
-    this.passwordService.getCategories().subscribe(categories => {
-      this.categories = categories;
-    });
-  }
 
   checkForEditMode(): void {
     this.passwordId = this.route.snapshot.paramMap.get('id');
@@ -458,14 +595,15 @@ export class PasswordFormComponent implements OnInit {
   }
 
   loadPasswordData(id: string): void {
-    this.passwordService.getPassword(id).subscribe(password => {
+    this.passwordService.getPassword(id).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(password => {
       if (password) {
         this.passwordForm.patchValue({
           title: password.title,
           username: password.username,
           password: password.password,
           url: password.url || '',
-          category: password.category || 'Personal',
           notes: password.notes || '',
           favorite: password.favorite
         });
@@ -489,7 +627,6 @@ export class PasswordFormComponent implements OnInit {
         this.router.navigate(['/passwords']);
       } catch (error) {
         console.error('Error saving password:', error);
-        // You could add a snackbar notification here to show the error to the user
       }
     }
   }
@@ -539,4 +676,120 @@ export class PasswordFormComponent implements OnInit {
     this.passwordForm.get('password')?.setValue(this.generatedPassword);
     this.closePasswordGenerator();
   }
+
+  // Custom Validators
+  noWhitespaceValidator(control: AbstractControl): ValidationErrors | null {
+    if (control.value && control.value.trim().length === 0) {
+      return { whitespace: true };
+    }
+    return null;
+  }
+
+  emailOrUsernameValidator(control: AbstractControl): ValidationErrors | null {
+    if (!control.value) return null;
+    
+    const value = control.value.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const usernameRegex = /^[a-zA-Z0-9._-]+$/;
+    
+    if (emailRegex.test(value) || usernameRegex.test(value)) {
+      return null;
+    }
+    
+    return { invalidFormat: true };
+  }
+
+  passwordStrengthValidator(control: AbstractControl): ValidationErrors | null {
+    if (!control.value) return null;
+    
+    const password = control.value;
+    const errors: ValidationErrors = {};
+    
+    // Check minimum length
+    if (password.length < 8) {
+      errors['minLength'] = true;
+    }
+    
+    // Check for at least one uppercase letter
+    if (!/[A-Z]/.test(password)) {
+      errors['noUppercase'] = true;
+    }
+    
+    // Check for at least one lowercase letter
+    if (!/[a-z]/.test(password)) {
+      errors['noLowercase'] = true;
+    }
+    
+    // Check for at least one number
+    if (!/[0-9]/.test(password)) {
+      errors['noNumber'] = true;
+    }
+    
+    // Check for at least one special character
+    if (!/[^A-Za-z0-9]/.test(password)) {
+      errors['noSpecialChar'] = true;
+    }
+    
+    // Check for common weak patterns
+    if (/(.)\1{2,}/.test(password)) {
+      errors['repeatingChars'] = true;
+    }
+    
+    if (/(123|abc|qwe|asd|zxc)/i.test(password)) {
+      errors['commonPattern'] = true;
+    }
+    
+    return Object.keys(errors).length > 0 ? errors : null;
+  }
+
+  urlValidator(control: AbstractControl): ValidationErrors | null {
+    if (!control.value) return null;
+    
+    const url = control.value.trim();
+    if (url === '') return null;
+    
+    try {
+      // Add protocol if missing
+      const urlWithProtocol = url.startsWith('http://') || url.startsWith('https://') 
+        ? url 
+        : 'https://' + url;
+      
+      new URL(urlWithProtocol);
+      return null;
+    } catch {
+      return { invalidUrl: true };
+    }
+  }
+
+  // Helper methods for password requirements
+  hasMinLength(): boolean {
+    const password = this.passwordForm.get('password')?.value || '';
+    return password.length >= 8;
+  }
+
+  hasUppercase(): boolean {
+    const password = this.passwordForm.get('password')?.value || '';
+    return /[A-Z]/.test(password);
+  }
+
+  hasLowercase(): boolean {
+    const password = this.passwordForm.get('password')?.value || '';
+    return /[a-z]/.test(password);
+  }
+
+  hasNumber(): boolean {
+    const password = this.passwordForm.get('password')?.value || '';
+    return /[0-9]/.test(password);
+  }
+
+  hasSpecialChar(): boolean {
+    const password = this.passwordForm.get('password')?.value || '';
+    return /[^A-Za-z0-9]/.test(password);
+  }
+
+  hasRepeatingChars(): boolean {
+    const password = this.passwordForm.get('password')?.value || '';
+    return /(.)\1{2,}/.test(password);
+  }
+
 }

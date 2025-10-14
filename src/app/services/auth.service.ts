@@ -33,13 +33,23 @@ export class AuthService {
     private auth: Auth,
     private router: Router
   ) {
+    // Set initial loading state
+    this.isLoading.set(true);
+    
     // Listen to authentication state changes
     try {
       onAuthStateChanged(this.auth, (user) => {
+        console.log('Auth state changed:', user ? 'User logged in' : 'User logged out');
         this.isLoading.set(false);
         this.isAuthenticated.set(!!user);
         this.currentUser.set(user);
         this.userSubject.next(user);
+        
+        // If user is authenticated, navigate to dashboard
+        if (user) {
+          console.log('User is authenticated, navigating to dashboard');
+          this.router.navigate(['/dashboard']);
+        }
       });
     } catch (error) {
       // Handle Firebase initialization errors gracefully

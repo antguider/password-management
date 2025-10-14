@@ -45,10 +45,6 @@ import { PasswordService } from '../../services/password.service';
               <span class="url-text">{{ getDomainFromUrl(password.url) }}</span>
             </div>
             
-            <div *ngIf="password.category" class="category-chip">
-              <mat-icon class="mini-icon">folder</mat-icon>
-              <span>{{ password.category }}</span>
-            </div>
           </div>
           
           <div class="strength-indicator">
@@ -95,77 +91,124 @@ import { PasswordService } from '../../services/password.service';
   styles: [`
     .password-card {
       width: 100%;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .password-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary-500), var(--primary-600));
+      transform: scaleX(0);
+      transition: transform 0.3s ease;
+    }
+
+    .password-card:hover::before {
+      transform: scaleX(1);
     }
 
     .password-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-xl);
     }
 
     .card-content {
       display: flex;
       justify-content: space-between;
-      padding: 12px 16px;
+      padding: var(--space-6);
+      align-items: flex-start;
     }
 
     .password-info {
       flex: 1;
+      min-width: 0;
     }
 
     .title-row {
       display: flex;
       align-items: center;
-      margin-bottom: 4px;
+      margin-bottom: var(--space-2);
+      gap: var(--space-2);
     }
 
     .password-title {
-      font-size: 18px;
-      font-weight: 500;
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-weight-bold);
       margin: 0;
-      color: #333;
+      color: var(--text-primary);
+      line-height: var(--line-height-tight);
+      letter-spacing: var(--letter-spacing-tight);
     }
 
     .favorite-icon {
-      color: #FFC107;
-      margin-left: 8px;
-      font-size: 18px;
-      height: 18px;
-      width: 18px;
+      color: var(--warning-500);
+      font-size: var(--font-size-lg);
+      height: var(--font-size-lg);
+      width: var(--font-size-lg);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      filter: drop-shadow(0 2px 4px rgba(245, 158, 11, 0.3));
+    }
+
+    .password-card:hover .favorite-icon {
+      transform: scale(1.2) rotate(15deg);
+      filter: drop-shadow(0 4px 8px rgba(245, 158, 11, 0.5));
     }
 
     .username {
-      color: #666;
-      margin: 4px 0 8px;
-      font-size: 14px;
+      color: var(--text-secondary);
+      margin: var(--space-2) 0 var(--space-4);
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-medium);
+      letter-spacing: var(--letter-spacing-normal);
     }
 
     .password-meta {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 12px;
+      gap: var(--space-2);
+      margin-bottom: var(--space-4);
     }
 
-    .url-chip, .category-chip {
-      display: flex;
+    .url-chip {
+      display: inline-flex;
       align-items: center;
-      background-color: #f0f0f0;
-      padding: 4px 8px;
-      border-radius: 16px;
-      font-size: 12px;
+      background: var(--surface-glass);
+      backdrop-filter: var(--glass-backdrop);
+      -webkit-backdrop-filter: var(--glass-backdrop);
+      padding: var(--space-2) var(--space-4);
+      border-radius: var(--radius-full);
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-semibold);
+      color: var(--text-secondary);
+      border: 1px solid var(--glass-border);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      letter-spacing: var(--letter-spacing-wide);
+      text-transform: uppercase;
+    }
+
+    .url-chip:hover {
+      background: var(--surface-elevated);
+      transform: translateY(-2px) scale(1.05);
+      border-color: var(--glass-border-strong);
+      box-shadow: var(--shadow-md);
+      color: var(--text-primary);
     }
 
     .mini-icon {
-      font-size: 12px;
-      height: 12px;
-      width: 12px;
-      margin-right: 4px;
+      font-size: 0.75rem;
+      height: 0.75rem;
+      width: 0.75rem;
+      margin-right: var(--space-1);
     }
 
     .url-text {
-      max-width: 140px;
+      max-width: 120px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -174,28 +217,78 @@ import { PasswordService } from '../../services/password.service';
     .strength-indicator {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-top: 8px;
+      gap: var(--space-3);
+      margin-top: var(--space-3);
+      padding: var(--space-2);
+      background: var(--gray-50);
+      border-radius: var(--radius-md);
     }
 
     .strength-label {
-      font-size: 12px;
-      min-width: 50px;
+      font-size: 0.75rem;
+      min-width: 60px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     .action-buttons {
       display: flex;
       align-items: flex-start;
+      margin-left: var(--space-4);
     }
 
-    @media (max-width: 599px) {
+    .action-buttons button {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: var(--radius-lg);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .action-buttons button:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+
+    @media (max-width: 768px) {
       .card-content {
         flex-direction: column;
+        gap: var(--space-4);
       }
       
       .action-buttons {
         align-self: flex-end;
-        margin-top: 8px;
+        margin-left: 0;
+      }
+
+      .password-meta {
+        gap: var(--space-1);
+      }
+
+      .url-chip {
+        font-size: 0.7rem;
+        padding: var(--space-1) var(--space-2);
+      }
+    }
+
+    @media (min-width: 1366px) and (max-width: 1920px) {
+      .password-card {
+        min-height: 140px;
+      }
+
+      .card-content {
+        padding: var(--space-8);
+      }
+
+      .password-title {
+        font-size: 1.25rem;
+      }
+
+      .username {
+        font-size: 1rem;
       }
     }
   `]

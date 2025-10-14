@@ -12,4 +12,5 @@
 
 .page-container.with-header {
   padding-top: 0;
+  min-height: calc(100vh - 80px);
 }

@@ -1,7 +1,7 @@
 import { Injectable, signal, computed, OnDestroy } from '@angular/core';
 import { BehaviorSubject, Observable, of, Subscription } from 'rxjs';
-import { map } from 'rxjs/operators';
-import { Password, PasswordFilter, Category, PasswordHistory } from '../models/password.model';
+import { map, distinctUntilChanged, takeUntil } from 'rxjs/operators';
+import { Password, PasswordFilter, PasswordHistory } from '../models/password.model';
 import { StorageService } from './storage.service';
 import { EncryptionService } from './encryption.service';
 import { FirestoreService } from './firestore.service';
@@ -11,21 +11,27 @@ import { AuthService } from './auth.service';
   providedIn: 'root'
 })
 export class PasswordService implements OnDestroy {
+  // Single source of truth - using signals only
   private passwords = signal<Password[]>([]);
-  private categories = signal<Category[]>([]);
   private passwordHistory = signal<PasswordHistory[]>([]);
   private currentFilter = signal<PasswordFilter>({
     sortBy: 'updatedAt',
     sortDirection: 'desc'
   });
 
-  private firestoreSubscription: Subscription | null = null;
-  private isInitialized = false;
-
-  // Computed signals
+  // Computed signals for reactive updates
   public passwordsList = computed(() => this.passwords());
-  public categoriesList = computed(() => this.categories());
   public passwordHistoryList = computed(() => this.passwordHistory());
+
+  // Filtered passwords computed signal
+  public filteredPasswords = computed(() => {
+    const passwords = this.passwords();
+    const filter = this.currentFilter();
+    return this.applyFilter(passwords, filter);
+  });
+
+  private isInitialized = false;
+  private destroy$ = new BehaviorSubject<boolean>(false);
 
   constructor(
     private storageService: StorageService,
@@ -36,13 +42,17 @@ export class PasswordService implements OnDestroy {
     this.initializeService();
   }
 
+
   ngOnDestroy(): void {
-    this.cleanup();
+    this.destroy$.next(true);
+    this.destroy$.complete();
   }
 
   private initializeService(): void {
     // Listen to authentication state changes
-    this.authService.user$.subscribe(user => {
+    this.authService.user$.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(user => {
       if (user && !this.isInitialized) {
         this.initializeUserData(user.uid);
         this.isInitialized = true;
@@ -52,8 +62,16 @@ export class PasswordService implements OnDestroy {
       }
     });
 
-    // Check demo mode state
+    // Check demo mode or initialize with sample data
     this.checkDemoMode();
+    
+    // If not authenticated and not in demo mode, enable demo mode automatically
+    setTimeout(() => {
+      if (!this.authService.isLoggedIn() && !this.isInitialized) {
+        this.authService.enableDemoMode();
+        this.checkDemoMode();
+      }
+    }, 1000); // Small delay to ensure auth state is settled
   }
 
   private checkDemoMode(): void {
@@ -61,9 +79,6 @@ export class PasswordService implements OnDestroy {
     if (isDemo && !this.isInitialized) {
       this.initializeDemoMode();
       this.isInitialized = true;
-    } else if (!isDemo && this.isInitialized) {
-      this.cleanup();
-      this.isInitialized = false;
     }
   }
 
@@ -71,78 +86,47 @@ export class PasswordService implements OnDestroy {
     // Initialize Firestore listeners
     this.firestoreService.initializeUserData(userId);
 
-    // Subscribe to Firestore data
-    this.firestoreSubscription = this.firestoreService.passwords$.subscribe(passwords => {
+    // Subscribe to Firestore data with proper cleanup
+    this.firestoreService.passwords$.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(passwords => {
       this.passwords.set(passwords);
     });
 
-    this.firestoreService.categories$.subscribe(categories => {
-      this.categories.set(categories);
-    });
-
-    this.firestoreService.passwordHistory$.subscribe(history => {
+    this.firestoreService.passwordHistory$.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(history => {
       this.passwordHistory.set(history);
     });
-
-    // Initialize default categories if user is new
-    this.initializeDefaultCategoriesIfNeeded(userId);
   }
 
   private initializeDemoMode(): void {
-    // For demo mode, use localStorage
     this.loadPasswordsFromStorage();
-    this.loadCategoriesFromStorage();
     this.loadPasswordHistoryFromStorage();
-  }
-
-  private async initializeDefaultCategoriesIfNeeded(userId: string): Promise<void> {
-    const categories = this.categories();
-    if (categories.length === 0) {
-      await this.firestoreService.initializeDefaultCategories(userId);
+    
+    // If no passwords in storage, create some sample passwords
+    if (this.passwords().length === 0) {
+      this.createSamplePasswords();
     }
   }
+
 
   private loadPasswordsFromStorage(): void {
     const storedPasswords = this.storageService.getItem('passwords');
     if (storedPasswords) {
       try {
         const decryptedPasswords = this.encryptionService.decryptData(storedPasswords);
-        this.passwords.set(JSON.parse(decryptedPasswords));
+        const passwords = JSON.parse(decryptedPasswords);
+        this.passwords.set(passwords);
       } catch (error) {
         console.error('Failed to load passwords from storage', error);
         this.passwords.set([]);
       }
+    } else {
+      this.passwords.set([]);
     }
   }
 
-  private loadCategoriesFromStorage(): void {
-    const storedCategories = this.storageService.getItem('categories');
-    if (storedCategories) {
-      try {
-        const decryptedCategories = this.encryptionService.decryptData(storedCategories);
-        this.categories.set(JSON.parse(decryptedCategories));
-      } catch (error) {
-        console.error('Failed to load categories from storage', error);
-        // Set default categories for demo mode
-        this.categories.set([
-          { id: '1', name: 'Personal', color: '#4CAF50', icon: 'person' },
-          { id: '2', name: 'Work', color: '#2196F3', icon: 'work' },
-          { id: '3', name: 'Finance', color: '#FF9800', icon: 'account_balance' },
-          { id: '4', name: 'Shopping', color: '#E91E63', icon: 'shopping_cart' },
-          { id: '5', name: 'Social', color: '#9C27B0', icon: 'group' },
-        ]);
-      }
-    } else {
-      // Set default categories for demo mode
-      this.categories.set([
-        { id: '1', name: 'Personal', color: '#4CAF50', icon: 'person' },
-        { id: '2', name: 'Work', color: '#2196F3', icon: 'work' },
-        { id: '3', name: 'Finance', color: '#FF9800', icon: 'account_balance' },
-        { id: '4', name: 'Shopping', color: '#E91E63', icon: 'shopping_cart' },
-        { id: '5', name: 'Social', color: '#9C27B0', icon: 'group' },
-      ]);
-    }
-  }
 
   private loadPasswordHistoryFromStorage(): void {
     const storedHistory = this.storageService.getItem('passwordHistory');
@@ -164,12 +148,6 @@ export class PasswordService implements OnDestroy {
     this.storageService.setItem('passwords', encryptedPasswords);
   }
 
-  private saveCategoriesToStorage(): void {
-    const encryptedCategories = this.encryptionService.encryptData(
-      JSON.stringify(this.categories())
-    );
-    this.storageService.setItem('categories', encryptedCategories);
-  }
 
   private savePasswordHistoryToStorage(): void {
     const encryptedHistory = this.encryptionService.encryptData(
@@ -178,28 +156,25 @@ export class PasswordService implements OnDestroy {
     this.storageService.setItem('passwordHistory', encryptedHistory);
   }
 
+  // Public API methods
   getPasswords(): Observable<Password[]> {
-    return of(this.passwords()).pipe(
-      map(passwords => this.applyFilter(passwords, this.currentFilter()))
-    );
+    return of(this.filteredPasswords());
+  }
+
+  getRawPasswords(): Observable<Password[]> {
+    return of(this.passwords());
   }
 
   getPassword(id: string): Observable<Password | undefined> {
     return of(this.passwords().find(p => p.id === id));
   }
 
-  getCategories(): Observable<Category[]> {
-    return of(this.categories());
-  }
 
   getPasswordHistory(passwordId: string): Observable<PasswordHistory[]> {
     return of(this.passwordHistory().filter(h => h.passwordId === passwordId));
   }
 
   async addPassword(password: Omit<Password, 'id' | 'createdAt' | 'updatedAt'>): Promise<void> {
-    console.log('Adding password:', password);
-    console.log('Is demo mode:', this.authService.isInDemoMode());
-    
     const newPassword: Password = {
       ...password,
       id: crypto.randomUUID(),
@@ -209,20 +184,13 @@ export class PasswordService implements OnDestroy {
     };
 
     if (this.authService.isInDemoMode()) {
-      // Demo mode - use localStorage
-      console.log('Saving to localStorage (demo mode)');
       this.passwords.update(current => [...current, newPassword]);
       this.savePasswordsToStorage();
     } else {
-      // Authenticated mode - use Firestore
       const user = this.authService.getCurrentUser();
-      console.log('Current user:', user);
       if (user) {
-        console.log('Saving to Firestore for user:', user.uid);
         await this.firestoreService.addPassword(user.uid, newPassword);
-        console.log('Password saved to Firestore successfully');
       } else {
-        console.error('No authenticated user found');
         throw new Error('No authenticated user found');
       }
     }
@@ -232,7 +200,6 @@ export class PasswordService implements OnDestroy {
     const existingPassword = this.passwords().find(p => p.id === id);
     
     if (existingPassword && password.password && password.password !== existingPassword.password) {
-      // Save old password to history
       const historyEntry: PasswordHistory = {
         id: crypto.randomUUID(),
         passwordId: id,
@@ -241,11 +208,9 @@ export class PasswordService implements OnDestroy {
       };
       
       if (this.authService.isInDemoMode()) {
-        // Demo mode - use localStorage
         this.passwordHistory.update(current => [...current, historyEntry]);
         this.savePasswordHistoryToStorage();
       } else {
-        // Authenticated mode - use Firestore
         const user = this.authService.getCurrentUser();
         if (user) {
           await this.firestoreService.addPasswordHistory(user.uid, historyEntry);
@@ -254,7 +219,6 @@ export class PasswordService implements OnDestroy {
     }
 
     if (this.authService.isInDemoMode()) {
-      // Demo mode - use localStorage
       this.passwords.update(current => 
         current.map(p => p.id === id ? { 
           ...p, 
@@ -267,7 +231,6 @@ export class PasswordService implements OnDestroy {
       );
       this.savePasswordsToStorage();
     } else {
-      // Authenticated mode - use Firestore
       const user = this.authService.getCurrentUser();
       if (user) {
         const updates = {
@@ -283,11 +246,9 @@ export class PasswordService implements OnDestroy {
 
   async deletePassword(id: string): Promise<void> {
     if (this.authService.isInDemoMode()) {
-      // Demo mode - use localStorage
       this.passwords.update(current => current.filter(p => p.id !== id));
       this.savePasswordsToStorage();
     } else {
-      // Authenticated mode - use Firestore
       const user = this.authService.getCurrentUser();
       if (user) {
         await this.firestoreService.deletePassword(user.uid, id);
@@ -295,54 +256,6 @@ export class PasswordService implements OnDestroy {
     }
   }
 
-  async addCategory(category: Omit<Category, 'id'>): Promise<void> {
-    const newCategory: Category = {
-      ...category,
-      id: crypto.randomUUID()
-    };
-
-    if (this.authService.isInDemoMode()) {
-      // Demo mode - use localStorage
-      this.categories.update(current => [...current, newCategory]);
-      this.saveCategoriesToStorage();
-    } else {
-      // Authenticated mode - use Firestore
-      const user = this.authService.getCurrentUser();
-      if (user) {
-        await this.firestoreService.addCategory(user.uid, newCategory);
-      }
-    }
-  }
-
-  async updateCategory(id: string, category: Partial<Category>): Promise<void> {
-    if (this.authService.isInDemoMode()) {
-      // Demo mode - use localStorage
-      this.categories.update(current => 
-        current.map(c => c.id === id ? { ...c, ...category } : c)
-      );
-      this.saveCategoriesToStorage();
-    } else {
-      // Authenticated mode - use Firestore
-      const user = this.authService.getCurrentUser();
-      if (user) {
-        await this.firestoreService.updateCategory(user.uid, id, category);
-      }
-    }
-  }
-
-  async deleteCategory(id: string): Promise<void> {
-    if (this.authService.isInDemoMode()) {
-      // Demo mode - use localStorage
-      this.categories.update(current => current.filter(c => c.id !== id));
-      this.saveCategoriesToStorage();
-    } else {
-      // Authenticated mode - use Firestore
-      const user = this.authService.getCurrentUser();
-      if (user) {
-        await this.firestoreService.deleteCategory(user.uid, id);
-      }
-    }
-  }
 
   setFilter(filter: PasswordFilter): void {
     this.currentFilter.set({ ...this.currentFilter(), ...filter });
@@ -368,9 +281,6 @@ export class PasswordService implements OnDestroy {
       );
     }
 
-    if (filter.category) {
-      filtered = filtered.filter(p => p.category === filter.category);
-    }
 
     if (filter.favorite !== undefined) {
       filtered = filtered.filter(p => p.favorite === filter.favorite);
@@ -409,7 +319,6 @@ export class PasswordService implements OnDestroy {
   }
 
   calculatePasswordStrength(password: string): number {
-    // Simple password strength calculation (0-100)
     let score = 0;
     
     // Length
@@ -436,14 +345,83 @@ export class PasswordService implements OnDestroy {
     this.updatePassword(id, { lastUsed: new Date() });
   }
 
+
+  private createSamplePasswords(): void {
+    const samplePasswords: Password[] = [
+      {
+        id: crypto.randomUUID(),
+        title: 'Gmail',
+        username: 'user@gmail.com',
+        password: 'MySecurePassword123!',
+        url: 'https://gmail.com',
+        notes: 'Personal email account',
+        favorite: true,
+        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
+        updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+        lastUsed: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
+        strength: 85
+      },
+      {
+        id: crypto.randomUUID(),
+        title: 'Facebook',
+        username: 'john.doe',
+        password: 'FbSecure2024!',
+        url: 'https://facebook.com',
+        notes: 'Social media account',
+        favorite: false,
+        createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000), // 14 days ago
+        updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+        lastUsed: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+        strength: 78
+      },
+      {
+        id: crypto.randomUUID(),
+        title: 'Bank Account',
+        username: 'john.doe@email.com',
+        password: 'BankPass2024#',
+        url: 'https://mybank.com',
+        notes: 'Primary checking account',
+        favorite: true,
+        createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
+        updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // 10 days ago
+        lastUsed: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
+        strength: 92
+      },
+      {
+        id: crypto.randomUUID(),
+        title: 'Netflix',
+        username: 'john.doe@email.com',
+        password: 'Netflix2024!',
+        url: 'https://netflix.com',
+        notes: 'Streaming service subscription',
+        favorite: false,
+        createdAt: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000), // 21 days ago
+        updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
+        lastUsed: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
+        strength: 70
+      },
+      {
+        id: crypto.randomUUID(),
+        title: 'GitHub',
+        username: 'johndoe',
+        password: 'GitHubDev2024!',
+        url: 'https://github.com',
+        notes: 'Code repository and development',
+        favorite: true,
+        createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000), // 60 days ago
+        updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+        lastUsed: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
+        strength: 88
+      }
+    ];
+
+    this.passwords.set(samplePasswords);
+    this.savePasswordsToStorage();
+  }
+
   private cleanup(): void {
-    if (this.firestoreSubscription) {
-      this.firestoreSubscription.unsubscribe();
-      this.firestoreSubscription = null;
-    }
     this.firestoreService.clearUserData();
     this.passwords.set([]);
-    this.categories.set([]);
     this.passwordHistory.set([]);
   }
 }

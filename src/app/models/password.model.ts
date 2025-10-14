@@ -4,7 +4,6 @@ export interface Password {
   username: string;
   password: string;
   url?: string;
-  category?: string;
   notes?: string;
   favorite: boolean;
   createdAt: Date;
@@ -20,16 +19,9 @@ export interface PasswordHistory {
   changedAt: Date;
 }
 
-export interface Category {
-  id: string;
-  name: string;
-  color: string;
-  icon?: string;
-}
 
 export interface PasswordFilter {
   searchTerm?: string;
-  category?: string;
   favorite?: boolean;
   sortBy?: 'title' | 'createdAt' | 'updatedAt' | 'lastUsed' | 'strength';
   sortDirection?: 'asc' | 'desc';
