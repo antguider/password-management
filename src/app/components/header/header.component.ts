@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -28,6 +28,13 @@ import { AuthService } from '../../services/auth.service';
 })
 export class HeaderComponent {
   showMobileMenu = false;
+
+  // Computed properties for reactive user info
+  isLoggedIn = computed(() => this.authService.isLoggedIn());
+  isDemoMode = computed(() => this.authService.isInDemoMode());
+  userDisplayName = computed(() => this.authService.getUserDisplayName());
+  userEmail = computed(() => this.authService.getUserEmail());
+  userPhotoUrl = computed(() => this.authService.getUserPhotoUrl());
 
   constructor(
     public authService: AuthService,

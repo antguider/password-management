@@ -34,20 +34,20 @@
       </a>
     </div>
 
-    <div class="user-section" *ngIf="authService.isLoggedIn()">
-      <div class="user-info" *ngIf="!authService.isInDemoMode()">
+    <div class="user-section" *ngIf="isLoggedIn()">
+      <div class="user-info" *ngIf="!isDemoMode()">
         <img 
-          *ngIf="authService.getUserPhotoUrl()" 
-          [src]="authService.getUserPhotoUrl()" 
-          [alt]="authService.getUserDisplayName()"
+          *ngIf="userPhotoUrl()" 
+          [src]="userPhotoUrl()" 
+          [alt]="userDisplayName()"
           class="user-avatar">
         <div class="user-details">
-          <span class="user-name">{{ authService.getUserDisplayName() }}</span>
-          <span class="user-email">{{ authService.getUserEmail() }}</span>
+          <span class="user-name">{{ userDisplayName() }}</span>
+          <span class="user-email">{{ userEmail() }}</span>
         </div>
       </div>
       
-      <div class="demo-info" *ngIf="authService.isInDemoMode()">
+      <div class="demo-info" *ngIf="isDemoMode()">
         <mat-icon class="demo-icon">visibility</mat-icon>
         <div class="demo-details">
           <span class="demo-name">Demo Mode</span>
@@ -60,21 +60,21 @@
       </button>
       
       <mat-menu #userMenu="matMenu">
-        <div class="menu-header" *ngIf="!authService.isInDemoMode()">
+        <div class="menu-header" *ngIf="!isDemoMode()">
           <div class="menu-user-info">
             <img 
-              *ngIf="authService.getUserPhotoUrl()" 
-              [src]="authService.getUserPhotoUrl()" 
-              [alt]="authService.getUserDisplayName()"
+              *ngIf="userPhotoUrl()" 
+              [src]="userPhotoUrl()" 
+              [alt]="userDisplayName()"
               class="menu-avatar">
             <div>
-              <div class="menu-user-name">{{ authService.getUserDisplayName() }}</div>
-              <div class="menu-user-email">{{ authService.getUserEmail() }}</div>
+              <div class="menu-user-name">{{ userDisplayName() }}</div>
+              <div class="menu-user-email">{{ userEmail() }}</div>
             </div>
           </div>
         </div>
         
-        <div class="menu-header" *ngIf="authService.isInDemoMode()">
+        <div class="menu-header" *ngIf="isDemoMode()">
           <div class="menu-demo-info">
             <mat-icon class="menu-demo-icon">visibility</mat-icon>
             <div>
@@ -86,12 +86,12 @@
         
         <mat-divider></mat-divider>
         
-        <button mat-menu-item (click)="logout()" *ngIf="!authService.isInDemoMode()">
+        <button mat-menu-item (click)="logout()" *ngIf="!isDemoMode()">
           <mat-icon>logout</mat-icon>
           <span>Sign Out</span>
         </button>
         
-        <button mat-menu-item (click)="exitDemo()" *ngIf="authService.isInDemoMode()">
+        <button mat-menu-item (click)="exitDemo()" *ngIf="isDemoMode()">
           <mat-icon>exit_to_app</mat-icon>
           <span>Exit Demo</span>
         </button>

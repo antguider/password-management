@@ -19,6 +19,10 @@ export class PasswordService implements OnDestroy {
     sortDirection: 'desc'
   });
 
+  // In-memory storage for incognito mode fallback
+  private inMemoryPasswords: Password[] = [];
+  private inMemoryPasswordHistory: PasswordHistory[] = [];
+
   // Computed signals for reactive updates
   public passwordsList = computed(() => this.passwords());
   public passwordHistoryList = computed(() => this.passwordHistory());
@@ -54,11 +58,16 @@ export class PasswordService implements OnDestroy {
       takeUntil(this.destroy$)
     ).subscribe(user => {
       if (user && !this.isInitialized) {
+        // User logged in - clear demo data and load from Firestore
+        this.cleanup();
         this.initializeUserData(user.uid);
         this.isInitialized = true;
       } else if (!user && this.isInitialized) {
+        // User logged out - cleanup and switch to demo mode
         this.cleanup();
         this.isInitialized = false;
+        this.authService.enableDemoMode();
+        this.checkDemoMode();
       }
     });
 
@@ -90,6 +99,7 @@ export class PasswordService implements OnDestroy {
     this.firestoreService.passwords$.pipe(
       takeUntil(this.destroy$)
     ).subscribe(passwords => {
+      console.log('Loading passwords from Firestore:', passwords.length);
       this.passwords.set(passwords);
     });
 
@@ -118,12 +128,19 @@ export class PasswordService implements OnDestroy {
         const decryptedPasswords = this.encryptionService.decryptData(storedPasswords);
         const passwords = JSON.parse(decryptedPasswords);
         this.passwords.set(passwords);
+        // Also store in memory for incognito mode fallback
+        this.inMemoryPasswords = [...passwords];
       } catch (error) {
         console.error('Failed to load passwords from storage', error);
         this.passwords.set([]);
       }
     } else {
-      this.passwords.set([]);
+      // Check if we have in-memory passwords (for incognito mode)
+      if (this.inMemoryPasswords.length > 0) {
+        this.passwords.set([...this.inMemoryPasswords]);
+      } else {
+        this.passwords.set([]);
+      }
     }
   }
 
@@ -133,27 +150,43 @@ export class PasswordService implements OnDestroy {
     if (storedHistory) {
       try {
         const decryptedHistory = this.encryptionService.decryptData(storedHistory);
-        this.passwordHistory.set(JSON.parse(decryptedHistory));
+        const history = JSON.parse(decryptedHistory);
+        this.passwordHistory.set(history);
+        // Also store in memory for incognito mode fallback
+        this.inMemoryPasswordHistory = [...history];
       } catch (error) {
         console.error('Failed to load password history from storage', error);
+        this.passwordHistory.set([]);
+      }
+    } else {
+      // Check if we have in-memory history (for incognito mode)
+      if (this.inMemoryPasswordHistory.length > 0) {
+        this.passwordHistory.set([...this.inMemoryPasswordHistory]);
+      } else {
         this.passwordHistory.set([]);
       }
     }
   }
 
   private savePasswordsToStorage(): void {
+    const passwords = this.passwords();
     const encryptedPasswords = this.encryptionService.encryptData(
-      JSON.stringify(this.passwords())
+      JSON.stringify(passwords)
     );
     this.storageService.setItem('passwords', encryptedPasswords);
+    // Also update in-memory storage for incognito mode fallback
+    this.inMemoryPasswords = [...passwords];
   }
 
 
   private savePasswordHistoryToStorage(): void {
+    const history = this.passwordHistory();
     const encryptedHistory = this.encryptionService.encryptData(
-      JSON.stringify(this.passwordHistory())
+      JSON.stringify(history)
     );
     this.storageService.setItem('passwordHistory', encryptedHistory);
+    // Also update in-memory storage for incognito mode fallback
+    this.inMemoryPasswordHistory = [...history];
   }
 
   // Public API methods
@@ -416,6 +449,7 @@ export class PasswordService implements OnDestroy {
     ];
 
     this.passwords.set(samplePasswords);
+    this.inMemoryPasswords = [...samplePasswords];
     this.savePasswordsToStorage();
   }
 
@@ -423,5 +457,7 @@ export class PasswordService implements OnDestroy {
     this.firestoreService.clearUserData();
     this.passwords.set([]);
     this.passwordHistory.set([]);
+    this.inMemoryPasswords = [];
+    this.inMemoryPasswordHistory = [];
   }
 }
