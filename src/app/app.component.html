@@ -1,6 +1,6 @@
 <div class="app-container">
-  <app-header></app-header>
-  <main class="page-container">
+  <app-header *ngIf="authService.isLoggedIn()"></app-header>
+  <main class="page-container" [class.with-header]="authService.isLoggedIn()">
     <router-outlet></router-outlet>
   </main>
 </div>

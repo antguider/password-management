@@ -94,12 +94,6 @@ import { ClipboardService } from '../../services/clipboard.service';
               </div>
             </div>
             
-            <div class="detail-row" *ngIf="password.category">
-              <div class="detail-label">Category</div>
-              <div class="detail-value">
-                <mat-chip>{{ password.category }}</mat-chip>
-              </div>
-            </div>
             
             <div class="detail-row" *ngIf="password.notes">
               <div class="detail-label">Notes</div>
