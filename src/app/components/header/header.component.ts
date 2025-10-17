@@ -30,11 +30,31 @@ export class HeaderComponent {
   showMobileMenu = false;
 
   // Computed properties for reactive user info
-  isLoggedIn = computed(() => this.authService.isLoggedIn());
-  isDemoMode = computed(() => this.authService.isInDemoMode());
-  userDisplayName = computed(() => this.authService.getUserDisplayName());
-  userEmail = computed(() => this.authService.getUserEmail());
-  userPhotoUrl = computed(() => this.authService.getUserPhotoUrl());
+  isLoggedIn = computed(() => {
+    const result = this.authService.isLoggedIn();
+    console.log('Header isLoggedIn computed:', result);
+    return result;
+  });
+  isDemoMode = computed(() => {
+    const result = this.authService.isInDemoMode();
+    console.log('Header isDemoMode computed:', result);
+    return result;
+  });
+  userDisplayName = computed(() => {
+    const result = this.authService.getUserDisplayName();
+    console.log('Header userDisplayName computed:', result);
+    return result;
+  });
+  userEmail = computed(() => {
+    const result = this.authService.getUserEmail();
+    console.log('Header userEmail computed:', result);
+    return result;
+  });
+  userPhotoUrl = computed(() => {
+    const result = this.authService.getUserPhotoUrl();
+    console.log('Header userPhotoUrl computed:', result);
+    return result;
+  });
 
   constructor(
     public authService: AuthService,

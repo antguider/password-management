@@ -40,6 +40,15 @@ export class AuthService {
     try {
       onAuthStateChanged(this.auth, (user) => {
         console.log('Auth state changed:', user ? 'User logged in' : 'User logged out');
+        if (user) {
+          console.log('User data received:', {
+            uid: user.uid,
+            displayName: user.displayName,
+            email: user.email,
+            photoURL: user.photoURL,
+            emailVerified: user.emailVerified
+          });
+        }
         this.isLoading.set(false);
         this.isAuthenticated.set(!!user);
         this.currentUser.set(user);
@@ -70,6 +79,9 @@ export class AuthService {
       
       const result = await signInWithPopup(this.auth, provider);
       console.log('Google sign-in successful:', result.user);
+      
+      // Disable demo mode when user authenticates
+      this.disableDemoMode();
       
       // Navigate to dashboard after successful login
       this.router.navigate(['/dashboard']);
@@ -121,7 +133,9 @@ export class AuthService {
    */
   getUserDisplayName(): string {
     const user = this.currentUser();
-    return user?.displayName || user?.email || 'User';
+    const displayName = user?.displayName || user?.email || 'User';
+    console.log('getUserDisplayName called:', { user, displayName });
+    return displayName;
   }
 
   /**
@@ -129,7 +143,9 @@ export class AuthService {
    */
   getUserEmail(): string {
     const user = this.currentUser();
-    return user?.email || '';
+    const email = user?.email || '';
+    console.log('getUserEmail called:', { user, email });
+    return email;
   }
 
   /**
@@ -137,7 +153,9 @@ export class AuthService {
    */
   getUserPhotoUrl(): string {
     const user = this.currentUser();
-    return user?.photoURL || '';
+    const photoUrl = user?.photoURL || '';
+    console.log('getUserPhotoUrl called:', { user, photoUrl });
+    return photoUrl;
   }
 
   /**

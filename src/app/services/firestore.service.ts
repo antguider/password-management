@@ -249,4 +249,24 @@ export class FirestoreService {
       console.error('🔍 DEBUG: Error fetching passwords:', error);
     }
   }
+
+  /**
+   * Test Firestore connectivity
+   */
+  async testFirestoreConnection(): Promise<boolean> {
+    try {
+      console.log('🧪 Testing Firestore connection...');
+      const testRef = collection(this.firestore, 'test');
+      const testDoc = await addDoc(testRef, { test: true, timestamp: new Date() });
+      console.log('✅ Firestore connection test successful, created test document:', testDoc.id);
+      
+      // Clean up test document
+      await deleteDoc(testDoc);
+      console.log('✅ Test document cleaned up');
+      return true;
+    } catch (error) {
+      console.error('❌ Firestore connection test failed:', error);
+      return false;
+    }
+  }
 }

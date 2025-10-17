@@ -41,7 +41,7 @@ export class PasswordService implements OnDestroy {
     private storageService: StorageService,
     private encryptionService: EncryptionService,
     private firestoreService: FirestoreService,
-    private authService: AuthService
+    public authService: AuthService
   ) {
     this.initializeService();
   }
@@ -57,13 +57,16 @@ export class PasswordService implements OnDestroy {
     this.authService.user$.pipe(
       takeUntil(this.destroy$)
     ).subscribe(user => {
-      if (user && !this.isInitialized) {
-        // User logged in - clear demo data and load from Firestore
+      console.log('🔐 Auth state changed - user:', user?.uid, 'isInitialized:', this.isInitialized);
+      if (user) {
+        // User logged in - always reinitialize to ensure we're in authenticated mode
+        console.log('🔐 User authenticated, initializing Firestore data for user:', user.uid);
         this.cleanup();
         this.initializeUserData(user.uid);
         this.isInitialized = true;
-      } else if (!user && this.isInitialized) {
+      } else if (this.isInitialized) {
         // User logged out - cleanup and switch to demo mode
+        console.log('🔐 User logged out, switching to demo mode');
         this.cleanup();
         this.isInitialized = false;
         this.authService.enableDemoMode();
@@ -71,27 +74,55 @@ export class PasswordService implements OnDestroy {
       }
     });
 
-    // Check demo mode or initialize with sample data
-    this.checkDemoMode();
-    
-    // If not authenticated and not in demo mode, enable demo mode automatically
+    // Check if user is already authenticated (browser reload case)
+    // Use a small delay to ensure auth service is fully initialized
     setTimeout(() => {
-      if (!this.authService.isLoggedIn() && !this.isInitialized) {
-        this.authService.enableDemoMode();
+      const currentUser = this.authService.getCurrentUser();
+      const isLoggedIn = this.authService.isLoggedIn();
+      console.log('🔐 Initial auth check - user:', currentUser?.uid, 'isLoggedIn:', isLoggedIn, 'isInitialized:', this.isInitialized);
+      
+      if (currentUser && isLoggedIn && !this.isInitialized) {
+        console.log('🔐 User already authenticated on app start, initializing Firestore data for user:', currentUser.uid);
+        this.cleanup();
+        this.initializeUserData(currentUser.uid);
+        this.isInitialized = true;
+      } else if (!isLoggedIn && !this.isInitialized) {
+        // Only initialize demo mode if not authenticated
         this.checkDemoMode();
+        
+        // If not authenticated and not in demo mode, enable demo mode automatically
+        setTimeout(() => {
+          if (!this.authService.isLoggedIn() && !this.isInitialized) {
+            console.log('No authentication detected, enabling demo mode');
+            this.authService.enableDemoMode();
+            this.checkDemoMode();
+          }
+        }, 1000); // Small delay to ensure auth state is settled
       }
-    }, 1000); // Small delay to ensure auth state is settled
+    }, 500); // Small delay to ensure auth service is ready
   }
 
   private checkDemoMode(): void {
     const isDemo = this.authService.isInDemoMode();
-    if (isDemo && !this.isInitialized) {
+    const isLoggedIn = this.authService.isLoggedIn();
+    console.log('🔍 Checking demo mode - isDemo:', isDemo, 'isLoggedIn:', isLoggedIn, 'isInitialized:', this.isInitialized);
+    
+    if (isDemo && !this.isInitialized && !isLoggedIn) {
+      console.log('🔍 Initializing demo mode');
       this.initializeDemoMode();
       this.isInitialized = true;
+    } else {
+      console.log('🔍 Demo mode check - conditions not met for initialization');
     }
   }
 
   private initializeUserData(userId: string): void {
+    console.log('Initializing user data for authenticated user:', userId);
+    
+    // Clear any existing demo data first
+    this.passwords.set([]);
+    this.passwordHistory.set([]);
+    
     // Initialize Firestore listeners
     this.firestoreService.initializeUserData(userId);
 
@@ -99,13 +130,19 @@ export class PasswordService implements OnDestroy {
     this.firestoreService.passwords$.pipe(
       takeUntil(this.destroy$)
     ).subscribe(passwords => {
-      console.log('Loading passwords from Firestore:', passwords.length);
+      console.log('📥 Password service received passwords from Firestore for user', userId + ':', passwords.length);
+      console.log('📥 Passwords data:', passwords);
+      if (passwords.length === 0) {
+        console.log('📥 No passwords found in Firestore for user:', userId);
+      }
       this.passwords.set(passwords);
+      console.log('📥 Updated local passwords signal with', this.passwords().length, 'passwords');
     });
 
     this.firestoreService.passwordHistory$.pipe(
       takeUntil(this.destroy$)
     ).subscribe(history => {
+      console.log('Loading password history from Firestore for user', userId + ':', history.length);
       this.passwordHistory.set(history);
     });
   }
@@ -194,6 +231,128 @@ export class PasswordService implements OnDestroy {
     return of(this.filteredPasswords());
   }
 
+  /**
+   * Check if we're in the correct mode (demo vs authenticated)
+   */
+  isInCorrectMode(): boolean {
+    const isDemo = this.authService.isInDemoMode();
+    const isLoggedIn = this.authService.isLoggedIn();
+    
+    // If demo mode, we should have demo passwords
+    if (isDemo && !isLoggedIn) {
+      return true;
+    }
+    
+    // If authenticated, we should have Firestore passwords (even if empty)
+    if (isLoggedIn && !isDemo) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Manually refresh passwords from Firestore
+   */
+  private async refreshPasswordsFromFirestore(userId: string): Promise<void> {
+    try {
+      console.log('🔄 Manually refreshing passwords from Firestore for user:', userId);
+      const passwords = await this.firestoreService.getPasswords(userId);
+      console.log('🔄 Retrieved passwords from Firestore:', passwords.length);
+      this.passwords.set(passwords);
+    } catch (error) {
+      console.error('🔄 Error refreshing passwords from Firestore:', error);
+    }
+  }
+
+  /**
+   * Force re-initialization of the service (useful for debugging)
+   */
+  public forceReinitialize(): void {
+    console.log('🔄 Force re-initializing password service...');
+    const currentUser = this.authService.getCurrentUser();
+    const isLoggedIn = this.authService.isLoggedIn();
+    const isDemo = this.authService.isInDemoMode();
+    
+    console.log('🔄 Current state - user:', currentUser?.uid, 'isLoggedIn:', isLoggedIn, 'isDemo:', isDemo);
+    
+    if (currentUser && isLoggedIn && !isDemo) {
+      console.log('🔄 Re-initializing for authenticated user:', currentUser.uid);
+      this.cleanup();
+      this.initializeUserData(currentUser.uid);
+      this.isInitialized = true;
+    } else {
+      console.log('🔄 Re-initializing for demo mode');
+      this.cleanup();
+      this.isInitialized = false;
+      this.authService.enableDemoMode();
+      this.checkDemoMode();
+    }
+  }
+
+  /**
+   * Check and fix authentication state if needed
+   */
+  public checkAndFixAuthState(): void {
+    const currentUser = this.authService.getCurrentUser();
+    const isLoggedIn = this.authService.isLoggedIn();
+    const isDemo = this.authService.isInDemoMode();
+    
+    console.log('🔍 Checking auth state - user:', currentUser?.uid, 'isLoggedIn:', isLoggedIn, 'isDemo:', isDemo, 'isInitialized:', this.isInitialized);
+    
+    // If user is logged in but we're in demo mode, fix it
+    if (currentUser && isLoggedIn && isDemo) {
+      console.log('🔧 Fixing: User is logged in but in demo mode, switching to authenticated mode');
+      this.authService.disableDemoMode();
+      this.forceReinitialize();
+    }
+    // If user is logged in but not initialized, initialize
+    else if (currentUser && isLoggedIn && !this.isInitialized) {
+      console.log('🔧 Fixing: User is logged in but not initialized, initializing now');
+      this.forceReinitialize();
+    }
+    // If no user but not in demo mode, enable demo mode
+    else if (!currentUser && !isLoggedIn && !isDemo) {
+      console.log('🔧 Fixing: No user but not in demo mode, enabling demo mode');
+      this.authService.enableDemoMode();
+      this.forceReinitialize();
+    }
+  }
+
+  /**
+   * Debug method to test Firebase connectivity and current state
+   */
+  public async debugFirebaseState(): Promise<void> {
+    console.log('🔍 === FIREBASE DEBUG INFO ===');
+    
+    // Test Firestore connection
+    const firestoreWorking = await this.firestoreService.testFirestoreConnection();
+    console.log('🔍 Firestore connection:', firestoreWorking ? '✅ Working' : '❌ Failed');
+    
+    // Check auth state
+    const currentUser = this.authService.getCurrentUser();
+    const isLoggedIn = this.authService.isLoggedIn();
+    const isDemo = this.authService.isInDemoMode();
+    
+    console.log('🔍 Auth state:');
+    console.log('  - Current user:', currentUser?.uid || 'None');
+    console.log('  - Is logged in:', isLoggedIn);
+    console.log('  - Is demo mode:', isDemo);
+    console.log('  - Service initialized:', this.isInitialized);
+    
+    // Check passwords
+    console.log('🔍 Password state:');
+    console.log('  - Local passwords count:', this.passwords().length);
+    console.log('  - Filtered passwords count:', this.filteredPasswords().length);
+    
+    if (currentUser && isLoggedIn && !isDemo) {
+      console.log('🔍 Testing Firestore data for user:', currentUser.uid);
+      await this.firestoreService.debugGetAllPasswords(currentUser.uid);
+    }
+    
+    console.log('🔍 === END DEBUG INFO ===');
+  }
+
   getRawPasswords(): Observable<Password[]> {
     return of(this.passwords());
   }
@@ -216,14 +375,35 @@ export class PasswordService implements OnDestroy {
       strength: this.calculatePasswordStrength(password.password)
     };
 
-    if (this.authService.isInDemoMode()) {
+    const isDemo = this.authService.isInDemoMode();
+    const isLoggedIn = this.authService.isLoggedIn();
+    const user = this.authService.getCurrentUser();
+    
+    console.log('🔐 Adding password - isDemo:', isDemo, 'isLoggedIn:', isLoggedIn, 'user:', user?.uid);
+    console.log('🔐 Auth service state - isAuthenticated:', this.authService.isUserAuthenticated(), 'demoMode:', this.authService.isInDemoMode());
+
+    if (isDemo || !isLoggedIn) {
+      console.log('Adding password to demo mode');
       this.passwords.update(current => [...current, newPassword]);
       this.savePasswordsToStorage();
     } else {
-      const user = this.authService.getCurrentUser();
       if (user) {
-        await this.firestoreService.addPassword(user.uid, newPassword);
+        console.log('Adding password to Firestore for user:', user.uid);
+        try {
+          await this.firestoreService.addPassword(user.uid, newPassword);
+          console.log('Password added to Firestore successfully');
+          
+          // Manually refresh the data to ensure it's loaded
+          setTimeout(() => {
+            console.log('🔄 Manually refreshing passwords after add');
+            this.refreshPasswordsFromFirestore(user.uid);
+          }, 1000);
+        } catch (error) {
+          console.error('❌ Error adding password to Firestore:', error);
+          throw error;
+        }
       } else {
+        console.error('No authenticated user found when trying to add password');
         throw new Error('No authenticated user found');
       }
     }
@@ -454,6 +634,7 @@ export class PasswordService implements OnDestroy {
   }
 
   private cleanup(): void {
+    console.log('Cleaning up password service data');
     this.firestoreService.clearUserData();
     this.passwords.set([]);
     this.passwordHistory.set([]);

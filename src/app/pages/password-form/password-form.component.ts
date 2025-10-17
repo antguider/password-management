@@ -618,6 +618,9 @@ export class PasswordFormComponent implements OnInit, OnDestroy {
       const passwordData = this.passwordForm.value;
       
       try {
+        // Check and fix authentication state before adding password
+        this.passwordService.checkAndFixAuthState();
+        
         if (this.isEditMode && this.passwordId) {
           await this.passwordService.updatePassword(this.passwordId, passwordData);
         } else {

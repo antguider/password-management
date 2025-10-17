@@ -45,6 +45,9 @@ import { Password, PasswordFilter } from '../../models/password.model';
           <button mat-icon-button (click)="refreshPasswords()" matTooltip="Refresh passwords">
             <mat-icon>refresh</mat-icon>
           </button>
+          <button mat-icon-button (click)="debugFirebaseState()" matTooltip="Debug Firebase State" color="warn">
+            <mat-icon>bug_report</mat-icon>
+          </button>
           <a mat-raised-button color="primary" routerLink="/passwords/new">
             <mat-icon>add</mat-icon>
             Add New Password
@@ -285,6 +288,24 @@ export class PasswordListComponent implements OnInit, OnDestroy {
     effect(() => {
       this.passwordService.setFilter(this.filter);
     });
+
+    // Check and fix authentication state immediately
+    this.passwordService.checkAndFixAuthState();
+
+    // Check if passwords are loading properly after a delay
+    setTimeout(() => {
+      if (this.passwordCount() === 0) {
+        console.log('🔍 No passwords detected, checking if service needs re-initialization...');
+        // Check if we should have passwords but don't
+        const isLoggedIn = this.passwordService.authService.isLoggedIn();
+        const isDemo = this.passwordService.authService.isInDemoMode();
+        
+        if (isLoggedIn && !isDemo) {
+          console.log('🔍 User is authenticated but no passwords found, forcing re-initialization...');
+          this.passwordService.forceReinitialize();
+        }
+      }
+    }, 2000); // Wait 2 seconds after component initialization
   }
 
   ngOnInit(): void {
@@ -342,8 +363,13 @@ export class PasswordListComponent implements OnInit, OnDestroy {
   }
 
   refreshPasswords(): void {
-    // Passwords are reactive, no manual refresh needed
-    console.log('Passwords refreshed automatically via signals');
+    // Force a refresh by re-initializing the service
+    console.log('🔄 Manually refreshing passwords...');
+    this.passwordService.forceReinitialize();
+  }
+
+  async debugFirebaseState(): Promise<void> {
+    await this.passwordService.debugFirebaseState();
   }
 
 }

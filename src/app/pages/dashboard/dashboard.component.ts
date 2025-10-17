@@ -648,7 +648,26 @@ export class DashboardComponent implements OnInit {
   constructor(private passwordService: PasswordService) {}
 
   ngOnInit(): void {
+    // Check and fix authentication state immediately
+    this.passwordService.checkAndFixAuthState();
+    
     this.loadDashboardData();
+    
+    // Check if passwords are loading properly after a delay
+    setTimeout(() => {
+      const passwordCount = this.passwordService.passwordsList().length;
+      if (passwordCount === 0) {
+        console.log('🔍 Dashboard: No passwords detected, checking if service needs re-initialization...');
+        // Check if we should have passwords but don't
+        const isLoggedIn = this.passwordService.authService.isLoggedIn();
+        const isDemo = this.passwordService.authService.isInDemoMode();
+        
+        if (isLoggedIn && !isDemo) {
+          console.log('🔍 Dashboard: User is authenticated but no passwords found, forcing re-initialization...');
+          this.passwordService.forceReinitialize();
+        }
+      }
+    }, 2000); // Wait 2 seconds after component initialization
   }
 
   loadDashboardData(): void {
