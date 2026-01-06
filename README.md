@@ -2,7 +2,7 @@
 
 ## Getting Started
 
-1. Visit [https://password-management-six.vercel.app](https://password-management-six.vercel.app)
+1. Visit [https://app.devmuthu.tech/login](https://app.devmuthu.tech/login)
 2. Create an account with your email and a strong master password
 3. Verify your email address
 4. Log in to access your password vault
